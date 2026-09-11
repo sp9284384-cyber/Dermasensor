@@ -146,10 +146,10 @@ so no separate web server is needed.
 
 ### Live sensor connection
 
-The web interface can receive real-time readings from an Arduino, ESP32, or
-other USB serial sensor gateway. Use Chrome or Edge, open the app through
+The web interface can receive real-time readings from an ESP32 over USB
+serial. Use Chrome or Edge, open the app through
 `http://localhost:5000`, click **Connect live sensor**, and select the serial
-device. The device should send one JSON object per line at **115200 baud**:
+device. The ESP32 should send one JSON object per line at **115200 baud**:
 
 ```text
 {"temperature":36.8,"ph_level":5.2,"moisture":45}
