@@ -2,7 +2,7 @@
 
 // Adjust these pins to match the ESP32 wiring.
 #define DHT_PIN 4
-#define DHT_TYPE DHT22
+#define DHT_TYPE DHT11
 #define MOISTURE_PIN 34
 
 // Calibrate these two values from your moisture probe.

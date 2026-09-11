@@ -165,10 +165,11 @@ The sensor gateway must be calibrated and electrically isolated as appropriate
 for patient use; this prototype is for development and demonstration, not a
 clinical device.
 
-An example ESP32 sketch is provided in `esp32_sensor.ino`. It reads a DHT22
-temperature sensor and an analog moisture probe, then emits the required JSON
-format. Install the Arduino **DHT sensor library**, select the ESP32 board,
-check `DHT_PIN` and `MOISTURE_PIN` against your wiring, and calibrate
+An example ESP32 sketch is provided in `esp32_sensor.ino`. It reads the blue
+DHT11-style temperature sensor shown in the hardware setup and an analog
+moisture probe, then emits the required JSON format. Install the Arduino
+**DHT sensor library**, select the ESP32 board, check `DHT_TYPE`, `DHT_PIN`,
+and `MOISTURE_PIN` against your wiring, and calibrate
 `MOISTURE_DRY_RAW` and `MOISTURE_WET_RAW` before uploading. The sketch uses
 GPIO 4 for the DHT data line and GPIO 34 for the analog moisture signal by
 default; these are examples, not universal wiring requirements.
