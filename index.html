@@ -118,7 +118,7 @@
 
       <label for="temp">Temperature (&deg;C)</label>
       <div class="slider-row">
-        <input type="range" id="temp" min="34" max="41.5" step="0.1" value="36.8">
+        <input type="range" id="temp" min="20" max="45" step="0.1" value="36.8">
         <span class="val" id="tempVal">36.8</span>
       </div>
 
@@ -139,6 +139,9 @@
       <div class="sensor-row">
         <button id="connectSensorBtn" type="button">Connect live sensor</button>
         <span class="sensor-status" id="sensorStatus">Manual input</span>
+      </div>
+      <div id="rawSerialBox" style="font-family:monospace; font-size:0.75rem; color:var(--muted); background:var(--panel2); padding:6px 10px; border-radius:6px; border:1px solid var(--border); margin-top:8px; display:none; word-break:break-all;">
+        Raw incoming: <span id="rawSerialText" style="color:var(--accent); font-weight:600;">-</span>
       </div>
 
       <div class="presets">
@@ -207,6 +210,18 @@ document.querySelectorAll(".presets button").forEach(btn => {
 predictBtn.addEventListener("click", runPrediction);
 connectSensorBtn.addEventListener("click", connectLiveSensor);
 
+let pendingSensorReading = null;
+let sensorInterval = null;
+
+function stripAnsi(str) {
+  return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqty=><]/gi, '').trim();
+}
+
+function isSystemLog(line) {
+  const clean = stripAnsi(line);
+  return /^(?:[IWEDV]\s*\(\d+\)|wifi:|dhcps:|ets |rst:|eSPI|Guru Meditation|ESP-ROM|mode\s*:|Bin version|Wroom|version|SDK|compile|boot|Disabling|RNG|entry 0x|load:0x|configsip|clk_drv)/i.test(clean);
+}
+
 async function connectLiveSensor(){
   if(!("serial" in navigator)){
     sensorStatus.textContent = "Use Chrome or Edge on localhost for sensors";
@@ -222,7 +237,13 @@ async function connectLiveSensor(){
     serialPort = await navigator.serial.requestPort();
     await serialPort.open({baudRate: 115200});
     connectSensorBtn.textContent = "Disconnect sensor";
-    sensorStatus.textContent = "Live: waiting for readings";
+    sensorStatus.textContent = "Live: sampling every 2s...";
+    document.getElementById("rawSerialBox").style.display = "block";
+
+    pendingSensorReading = null;
+    if(sensorInterval) clearInterval(sensorInterval);
+    sensorInterval = setInterval(processBufferedSensorReading, 2000);
+
     readSensorStream();
   } catch(err) {
     serialPort = null;
@@ -231,6 +252,11 @@ async function connectLiveSensor(){
 }
 
 async function disconnectLiveSensor(){
+  if(sensorInterval){
+    clearInterval(sensorInterval);
+    sensorInterval = null;
+  }
+  pendingSensorReading = null;
   if(serialReader){
     await serialReader.cancel();
     serialReader = null;
@@ -266,62 +292,87 @@ async function readSensorStream(){
 }
 
 function handleSensorReading(line){
-  try {
-    const reading = parseSensorPacket(line);
-    if(!reading){
-      if(line.trim()) sensorStatus.textContent = "Live: received data, waiting for temperature + moisture";
-      return;
-    }
-    const values = [reading.temperature, reading.moisture];
-    if(values.some(value => typeof value !== "number" || !Number.isFinite(value))){
-      throw new Error("expected temperature and moisture numbers");
-    }
-    if(reading.temperature < 25 || reading.temperature > 45 || reading.moisture < 0 || reading.moisture > 100){
-      throw new Error("reading is outside the valid sensor range");
-    }
-    temp.value = reading.temperature;
-    ph.value = FIXED_PH_LEVEL;
-    moisture.value = reading.moisture;
-    syncLabels();
-    sensorStatus.textContent = `Live: ${new Date().toLocaleTimeString()}`;
-    runPrediction();
-  } catch(err) {
-    sensorStatus.textContent = `Invalid sensor packet: ${err.message}`;
+  const cleanLine = stripAnsi(line);
+  if(!cleanLine) return;
+
+  if(isSystemLog(cleanLine)){
+    return;
   }
+
+  const rawEl = document.getElementById("rawSerialText");
+  if(rawEl) rawEl.textContent = cleanLine;
+
+  const reading = parseSensorPacket(cleanLine);
+  if(reading){
+    const values = [reading.temperature, reading.moisture];
+    if(values.every(v => typeof v === "number" && Number.isFinite(v))){
+      if(reading.temperature >= 15 && reading.temperature <= 50 && reading.moisture >= 0 && reading.moisture <= 100){
+        pendingSensorReading = reading;
+      }
+    }
+  }
+}
+
+function processBufferedSensorReading(){
+  if(!pendingSensorReading) return;
+  const reading = pendingSensorReading;
+  pendingSensorReading = null;
+
+  temp.value = reading.temperature;
+  ph.value = FIXED_PH_LEVEL;
+  moisture.value = reading.moisture;
+  syncLabels();
+
+  sensorStatus.textContent = `Live (2s sample): ${new Date().toLocaleTimeString()} (${reading.temperature.toFixed(1)}°C / ${reading.moisture.toFixed(0)}%)`;
 }
 
 function parseSensorPacket(line){
   const text = line.trim();
-  if(!text){
-    return null;
-  }
+  if(!text) return null;
 
-  const looksLikeLabeledReading = /temperature|temp/i.test(text);
-  const looksLikeCsvReading = /^\s*-?\d+(?:\.\d+)?\s*[,;\s]\s*-?\d+/.test(text);
-  if(!looksLikeLabeledReading && !looksLikeCsvReading) return null;
-
+  // 1. Try JSON parsing
   try {
-    const jsonText = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-    const json = JSON.parse(jsonText);
-    return {
-      temperature: Number(json.temperature ?? json.temp),
-      moisture: Number(json.moisture ?? json.moisture_percent ?? json.moisturePct)
-    };
-  } catch(err) {
-    const temperatureMatch = text.match(/(?:temperature|temp)\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i);
-    const moistureMatch = text.match(/moisture\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i);
-    if(temperatureMatch && moistureMatch){
-      return {
-        temperature: Number(temperatureMatch[1]),
-        moisture: Number(moistureMatch[1])
-      };
+    const startIdx = text.indexOf("{");
+    const endIdx = text.lastIndexOf("}");
+    if (startIdx !== -1 && endIdx > startIdx) {
+      const jsonText = text.slice(startIdx, endIdx + 1);
+      const json = JSON.parse(jsonText);
+      const tempVal = Number(json.temperature ?? json.temp ?? json.t);
+      const moistVal = Number(json.moisture ?? json.moisture_percent ?? json.moisturePct ?? json.humidity ?? json.hum ?? json.m);
+      if (Number.isFinite(tempVal) && Number.isFinite(moistVal)) {
+        return { temperature: tempVal, moisture: moistVal };
+      }
     }
-    const csvValues = text.split(/[;,\s]+/).map(Number);
-    if(csvValues.length >= 2 && csvValues.every(Number.isFinite)){
-      return {temperature: csvValues[0], moisture: csvValues[1]};
+  } catch(e) {}
+
+  // 2. Try labeled regex parsing (e.g. Temp: 27.5 Moisture: 45)
+  const tempMatch = text.match(/(?:temperature|temp|t)\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i);
+  const moistMatch = text.match(/(?:moisture|humidity|moist|hum|m)\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i);
+  if(tempMatch && moistMatch){
+    const t = Number(tempMatch[1]);
+    const m = Number(moistMatch[1]);
+    if(Number.isFinite(t) && Number.isFinite(m)){
+      return { temperature: t, moisture: m };
     }
-    return null;
   }
+
+  // 3. Extract any two numbers in line only if NOT a firmware/system header
+  if(!/bin|wroom|version|sdk|wifi|mode|flash|chip|baud|boot/i.test(text)){
+    const matches = text.match(/-?\d+(?:\.\d+)?/g);
+    if(matches && matches.length >= 2){
+      const num1 = Number(matches[0]);
+      const num2 = Number(matches[1]);
+      if(Number.isFinite(num1) && Number.isFinite(num2)){
+        if(num1 >= 15 && num1 <= 50 && num2 >= 0 && num2 <= 100){
+          return { temperature: num1, moisture: num2 };
+        } else if (num2 >= 15 && num2 <= 50 && num1 >= 0 && num1 <= 100){
+          return { temperature: num2, moisture: num1 };
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 async function runPrediction(){

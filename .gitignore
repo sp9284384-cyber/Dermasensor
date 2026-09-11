@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PlatformIO build artifacts
+.pio/
+esp32_firmware/.pio/
+
+# Scratch & Temporary
+scratch/
+*.log
+*.zip
+
+# IDEs
+.vscode/
+.idea/

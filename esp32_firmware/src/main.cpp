@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <DHT.h>
 
 // Support both GPIO 4 (G4) and GPIO 0 (G0) automatically

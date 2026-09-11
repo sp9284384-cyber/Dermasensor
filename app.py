@@ -76,7 +76,7 @@ FACTOR_LABEL = {
 def validate_input(data):
     errors = []
     for field, lo, hi in [
-        ("temperature", 25.0, 45.0),
+        ("temperature", 20.0, 45.0),
         ("ph_level", 0.0, 14.0),
         ("moisture", 0.0, 100.0),
     ]:
