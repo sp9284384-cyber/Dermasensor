@@ -267,12 +267,17 @@ async function readSensorStream(){
 
 function handleSensorReading(line){
   try {
-    // ESP32 boot logs and library diagnostics are not sensor packets.
-    if(!line.trim().startsWith("{")) return;
-    const reading = JSON.parse(line);
+    const reading = parseSensorPacket(line);
+    if(!reading){
+      if(line.trim()) sensorStatus.textContent = "Live: received data, waiting for temperature + moisture";
+      return;
+    }
     const values = [reading.temperature, reading.moisture];
     if(values.some(value => typeof value !== "number" || !Number.isFinite(value))){
       throw new Error("expected temperature and moisture numbers");
+    }
+    if(reading.temperature < 25 || reading.temperature > 45 || reading.moisture < 0 || reading.moisture > 100){
+      throw new Error("reading is outside the valid sensor range");
     }
     temp.value = reading.temperature;
     ph.value = FIXED_PH_LEVEL;
@@ -282,6 +287,40 @@ function handleSensorReading(line){
     runPrediction();
   } catch(err) {
     sensorStatus.textContent = `Invalid sensor packet: ${err.message}`;
+  }
+}
+
+function parseSensorPacket(line){
+  const text = line.trim();
+  if(!text){
+    return null;
+  }
+
+  const looksLikeLabeledReading = /temperature|temp/i.test(text);
+  const looksLikeCsvReading = /^\s*-?\d+(?:\.\d+)?\s*[,;\s]\s*-?\d+/.test(text);
+  if(!looksLikeLabeledReading && !looksLikeCsvReading) return null;
+
+  try {
+    const jsonText = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+    const json = JSON.parse(jsonText);
+    return {
+      temperature: Number(json.temperature ?? json.temp),
+      moisture: Number(json.moisture ?? json.moisture_percent ?? json.moisturePct)
+    };
+  } catch(err) {
+    const temperatureMatch = text.match(/(?:temperature|temp)\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i);
+    const moistureMatch = text.match(/moisture\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i);
+    if(temperatureMatch && moistureMatch){
+      return {
+        temperature: Number(temperatureMatch[1]),
+        moisture: Number(moistureMatch[1])
+      };
+    }
+    const csvValues = text.split(/[;,\s]+/).map(Number);
+    if(csvValues.length >= 2 && csvValues.every(Number.isFinite)){
+      return {temperature: csvValues[0], moisture: csvValues[1]};
+    }
+    return null;
   }
 }
 
