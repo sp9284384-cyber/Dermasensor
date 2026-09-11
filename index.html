@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DermaSensor — Wound Infection Risk Monitor</title>
+<style>
+  :root{
+    --bg:#0b1120; --panel:#111a2e; --panel2:#0f1830; --border:#223050;
+    --text:#e7ecf7; --muted:#8ea0c2; --accent:#3ba6ff;
+    --low:#2fbf71; --medium:#f0a63a; --high:#ff5c5c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    background:radial-gradient(circle at top,#132038,#080d18 70%);
+    color:var(--text); min-height:100vh; padding:32px 16px;
+  }
+  .wrap{max-width:960px;margin:0 auto;}
+  header{text-align:center;margin-bottom:28px;}
+  header h1{font-size:1.9rem;margin:0 0 6px;letter-spacing:.5px;}
+  header p{color:var(--muted);margin:0;font-size:.95rem;}
+  .badge{display:inline-block;background:#132a4a;color:var(--accent);
+    padding:3px 10px;border-radius:20px;font-size:.72rem;letter-spacing:1px;
+    text-transform:uppercase;margin-bottom:10px;border:1px solid #1d3a63;}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  @media(max-width:760px){.grid{grid-template-columns:1fr;}}
+
+  .card{background:var(--panel);border:1px solid var(--border);
+    border-radius:14px;padding:24px;}
+  .card h2{margin-top:0;font-size:1.1rem;color:var(--text);}
+
+  label{display:block;font-size:.85rem;color:var(--muted);margin:16px 0 6px;}
+  label:first-of-type{margin-top:0;}
+  .slider-row{display:flex;align-items:center;gap:12px;}
+  input[type=range]{flex:1;accent-color:var(--accent);}
+  .val{min-width:64px;text-align:right;font-variant-numeric:tabular-nums;
+    font-weight:600;color:var(--accent);}
+  input[type=number]{
+    width:100%;background:var(--panel2);border:1px solid var(--border);
+    color:var(--text);padding:8px 10px;border-radius:8px;font-size:.95rem;
+  }
+
+  button{
+    margin-top:22px;width:100%;padding:12px;border:none;border-radius:10px;
+    background:linear-gradient(135deg,#2f7fd6,#3ba6ff);color:#fff;
+    font-size:1rem;font-weight:600;cursor:pointer;transition:transform .1s;
+  }
+  button:hover{transform:translateY(-1px);}
+  button:disabled{opacity:.6;cursor:not-allowed;}
+
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .presets button{
+    margin-top:0;flex:1;min-width:100px;background:var(--panel2);
+    border:1px solid var(--border);font-size:.78rem;padding:8px 6px;
+  }
+
+  .result{min-height:100%;}
+  .risk-pill{
+    display:inline-flex;align-items:center;gap:8px;padding:8px 16px;
+    border-radius:30px;font-weight:700;font-size:1.05rem;margin-bottom:14px;
+  }
+  .dot{width:10px;height:10px;border-radius:50%;}
+  .risk-Low{background:rgba(47,191,113,.12);color:var(--low);}
+  .risk-Low .dot{background:var(--low);}
+  .risk-Medium{background:rgba(240,166,58,.12);color:var(--medium);}
+  .risk-Medium .dot{background:var(--medium);}
+  .risk-High{background:rgba(255,92,92,.12);color:var(--high);}
+  .risk-High .dot{background:var(--high);}
+
+  .bar-row{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:.82rem;}
+  .bar-label{width:64px;color:var(--muted);}
+  .bar-track{flex:1;height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:6px;background:var(--accent);}
+  .bar-pct{width:42px;text-align:right;color:var(--muted);}
+
+  .explain{
+    margin-top:18px;background:var(--panel2);border:1px solid var(--border);
+    border-radius:10px;padding:14px 16px;font-size:.88rem;line-height:1.55;
+    white-space:pre-line;color:#d7e0f2;
+  }
+  .explain-tag{
+    display:inline-block;font-size:.68rem;letter-spacing:.5px;
+    text-transform:uppercase;color:var(--muted);margin-bottom:8px;
+  }
+  ul.rules{margin:10px 0 0;padding-left:18px;font-size:.82rem;color:var(--muted);}
+  ul.rules li{margin-bottom:4px;}
+
+  .placeholder{color:var(--muted);font-size:.9rem;text-align:center;
+    padding:40px 10px;}
+  .error{color:var(--high);font-size:.88rem;margin-top:10px;}
+  footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:28px;}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">Smart Bandage &middot; Explainable AI</span>
+    <h1>DermaSensor</h1>
+    <p>Dynamic Electronic Real-time Monitoring &amp; Assessment for Surgical Exudate</p>
+  </header>
+
+  <div class="grid">
+    <!-- INPUT CARD -->
+    <div class="card">
+      <h2>Sensor Readings</h2>
+
+      <label for="temp">Temperature (&deg;C)</label>
+      <div class="slider-row">
+        <input type="range" id="temp" min="34" max="41.5" step="0.1" value="36.8">
+        <span class="val" id="tempVal">36.8</span>
+      </div>
+
+      <label for="ph">pH Level</label>
+      <div class="slider-row">
+        <input type="range" id="ph" min="3" max="9.5" step="0.1" value="5.2">
+        <span class="val" id="phVal">5.2</span>
+      </div>
+
+      <label for="moisture">Moisture (%)</label>
+      <div class="slider-row">
+        <input type="range" id="moisture" min="5" max="100" step="1" value="45">
+        <span class="val" id="moistureVal">45</span>
+      </div>
+
+      <button id="predictBtn">Analyze Wound Risk</button>
+
+      <div class="presets">
+        <button data-t="36.6" data-p="5.0" data-m="40">Healthy example</button>
+        <button data-t="37.9" data-p="6.8" data-m="70">Borderline example</button>
+        <button data-t="39.1" data-p="8.3" data-m="92">High-risk example</button>
+      </div>
+      <div class="error" id="errorBox"></div>
+    </div>
+
+    <!-- RESULT CARD -->
+    <div class="card result">
+      <h2>Risk Assessment</h2>
+      <div id="resultBody">
+        <div class="placeholder">Adjust the readings and click "Analyze Wound Risk" to see the AI's assessment.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Backend: Flask + scikit-learn RandomForest &middot; Explainability: rule-engine + optional Llama&nbsp;3 (Ollama) narration<br>
+    API base: <code id="apiBaseLabel"></code>
+  </footer>
+</div>
+
+<script>
+// If served from the Flask app itself, same-origin '' works.
+// If opened as a static file, point this at your running backend.
+const API_BASE = window.location.protocol === "file:" ? "http://localhost:5000" : "";
+document.getElementById("apiBaseLabel").textContent = API_BASE || window.location.origin;
+
+const temp = document.getElementById("temp");
+const ph = document.getElementById("ph");
+const moisture = document.getElementById("moisture");
+const tempVal = document.getElementById("tempVal");
+const phVal = document.getElementById("phVal");
+const moistureVal = document.getElementById("moistureVal");
+const resultBody = document.getElementById("resultBody");
+const errorBox = document.getElementById("errorBox");
+const predictBtn = document.getElementById("predictBtn");
+
+function syncLabels(){
+  tempVal.textContent = parseFloat(temp.value).toFixed(1);
+  phVal.textContent = parseFloat(ph.value).toFixed(1);
+  moistureVal.textContent = Math.round(moisture.value);
+}
+[temp, ph, moisture].forEach(el => el.addEventListener("input", syncLabels));
+syncLabels();
+
+document.querySelectorAll(".presets button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    temp.value = btn.dataset.t;
+    ph.value = btn.dataset.p;
+    moisture.value = btn.dataset.m;
+    syncLabels();
+    runPrediction();
+  });
+});
+
+predictBtn.addEventListener("click", runPrediction);
+
+async function runPrediction(){
+  errorBox.textContent = "";
+  predictBtn.disabled = true;
+  predictBtn.textContent = "Analyzing…";
+  resultBody.innerHTML = '<div class="placeholder">Running model + rule-engine…</div>';
+
+  const payload = {
+    temperature: parseFloat(temp.value),
+    ph_level: parseFloat(ph.value),
+    moisture: parseFloat(moisture.value)
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/api/predict`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(!res.ok){
+      throw new Error(data.details ? data.details.join(", ") : (data.error || "Request failed"));
+    }
+    renderResult(data);
+  } catch(err){
+    errorBox.textContent = "Error: " + err.message + " — is the backend running? (python app.py)";
+    resultBody.innerHTML = '<div class="placeholder">No result yet.</div>';
+  } finally {
+    predictBtn.disabled = false;
+    predictBtn.textContent = "Analyze Wound Risk";
+  }
+}
+
+function renderResult(data){
+  const cls = data.risk_class;
+  const probs = data.probabilities;
+  const order = ["Low", "Medium", "High"];
+
+  let barsHtml = "";
+  order.forEach(k => {
+    const pct = (probs[k] ?? 0) * 100;
+    barsHtml += `
+      <div class="bar-row">
+        <span class="bar-label">${k}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;"></div></div>
+        <span class="bar-pct">${pct.toFixed(0)}%</span>
+      </div>`;
+  });
+
+  const rulesHtml = data.rule_breakdown.map(l => `<li>${l}</li>`).join("");
+
+  resultBody.innerHTML = `
+    <div class="risk-pill risk-${cls}"><span class="dot"></span>${cls} Risk</div>
+    ${barsHtml}
+    <div class="explain">
+      <span class="explain-tag">AI Explainability &middot; ${data.explanation_source === 'llama3-ollama' ? 'Llama 3 narration' : 'rule-grounded template'}</span>
+      ${data.explanation}
+      <ul class="rules">${rulesHtml}</ul>
+    </div>
+  `;
+}
+</script>
+</body>
+</html>
