@@ -157,10 +157,11 @@ and moisture are read from the hardware:
 {"temperature":36.8,"moisture":45}
 ```
 
-Each valid packet updates the displayed readings and automatically calls the
+Each valid JSON packet updates the displayed readings and automatically calls the
 existing `/api/predict` endpoint, with `ph_level=5.2` added by the UI. Live
 hardware therefore uses the same validation,
 Random Forest model, rule engine, and explanation pipeline as manual input.
+ESP32 startup logs or other non-JSON serial lines are ignored.
 The sensor gateway must be calibrated and electrically isolated as appropriate
 for patient use; this prototype is for development and demonstration, not a
 clinical device.

@@ -92,6 +92,12 @@
 
   .placeholder{color:var(--muted);font-size:.9rem;text-align:center;
     padding:40px 10px;}
+  .live-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+    margin:0 0 18px;}
+  .live-reading{background:var(--panel2);border:1px solid var(--border);
+    border-radius:8px;padding:10px 8px;text-align:center;}
+  .live-reading-label{display:block;color:var(--muted);font-size:.72rem;margin-bottom:4px;}
+  .live-reading-value{display:block;color:var(--accent);font-weight:700;font-size:1rem;}
   .error{color:var(--high);font-size:.88rem;margin-top:10px;}
   footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:28px;}
   code{background:var(--panel2);padding:1px 5px;border-radius:4px;}
@@ -261,6 +267,8 @@ async function readSensorStream(){
 
 function handleSensorReading(line){
   try {
+    // ESP32 boot logs and library diagnostics are not sensor packets.
+    if(!line.trim().startsWith("{")) return;
     const reading = JSON.parse(line);
     const values = [reading.temperature, reading.moisture];
     if(values.some(value => typeof value !== "number" || !Number.isFinite(value))){
@@ -299,7 +307,7 @@ async function runPrediction(){
     if(!res.ok){
       throw new Error(data.details ? data.details.join(", ") : (data.error || "Request failed"));
     }
-    renderResult(data);
+    renderResult(data, payload);
   } catch(err){
     errorBox.textContent = "Error: " + err.message + " — is the backend running? (python app.py)";
     resultBody.innerHTML = '<div class="placeholder">No result yet.</div>';
@@ -309,7 +317,7 @@ async function runPrediction(){
   }
 }
 
-function renderResult(data){
+function renderResult(data, readings){
   const cls = data.risk_class;
   const probs = data.probabilities;
   const order = ["Low", "Medium", "High"];
@@ -328,6 +336,11 @@ function renderResult(data){
   const rulesHtml = data.rule_breakdown.map(l => `<li>${l}</li>`).join("");
 
   resultBody.innerHTML = `
+    <div class="live-summary">
+      <div class="live-reading"><span class="live-reading-label">Temperature</span><span class="live-reading-value">${readings.temperature.toFixed(1)}°C</span></div>
+      <div class="live-reading"><span class="live-reading-label">pH (fixed)</span><span class="live-reading-value">${readings.ph_level.toFixed(1)}</span></div>
+      <div class="live-reading"><span class="live-reading-label">Moisture</span><span class="live-reading-value">${readings.moisture.toFixed(0)}%</span></div>
+    </div>
     <div class="risk-pill risk-${cls}"><span class="dot"></span>${cls} Risk</div>
     ${barsHtml}
     <div class="explain">
