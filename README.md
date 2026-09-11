@@ -144,6 +144,24 @@ python app.py
 Open **http://localhost:5000** — the page is served directly by Flask,
 so no separate web server is needed.
 
+### Live sensor connection
+
+The web interface can receive real-time readings from an Arduino, ESP32, or
+other USB serial sensor gateway. Use Chrome or Edge, open the app through
+`http://localhost:5000`, click **Connect live sensor**, and select the serial
+device. The device should send one JSON object per line at **115200 baud**:
+
+```text
+{"temperature":36.8,"ph_level":5.2,"moisture":45}
+```
+
+Each valid packet updates the displayed readings and automatically calls the
+existing `/api/predict` endpoint, so live hardware uses the same validation,
+Random Forest model, rule engine, and explanation pipeline as manual input.
+The sensor gateway must be calibrated and electrically isolated as appropriate
+for patient use; this prototype is for development and demonstration, not a
+clinical device.
+
 ### Optional: enable Llama 3 explanations
 ```bash
 ollama pull llama3

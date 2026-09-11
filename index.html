@@ -55,6 +55,9 @@
     margin-top:0;flex:1;min-width:100px;background:var(--panel2);
     border:1px solid var(--border);font-size:.78rem;padding:8px 6px;
   }
+  .sensor-row{display:flex;align-items:center;gap:10px;margin-top:18px;}
+  .sensor-row button{margin-top:0;flex:1;background:var(--panel2);border:1px solid var(--border);}
+  .sensor-status{color:var(--muted);font-size:.78rem;line-height:1.3;}
 
   .result{min-height:100%;}
   .risk-pill{
@@ -127,6 +130,11 @@
 
       <button id="predictBtn">Analyze Wound Risk</button>
 
+      <div class="sensor-row">
+        <button id="connectSensorBtn" type="button">Connect live sensor</button>
+        <span class="sensor-status" id="sensorStatus">Manual input</span>
+      </div>
+
       <div class="presets">
         <button data-t="36.6" data-p="5.0" data-m="40">Healthy example</button>
         <button data-t="37.9" data-p="6.8" data-m="70">Borderline example</button>
@@ -165,6 +173,10 @@ const moistureVal = document.getElementById("moistureVal");
 const resultBody = document.getElementById("resultBody");
 const errorBox = document.getElementById("errorBox");
 const predictBtn = document.getElementById("predictBtn");
+const connectSensorBtn = document.getElementById("connectSensorBtn");
+const sensorStatus = document.getElementById("sensorStatus");
+let serialPort = null;
+let serialReader = null;
 
 function syncLabels(){
   tempVal.textContent = parseFloat(temp.value).toFixed(1);
@@ -185,6 +197,83 @@ document.querySelectorAll(".presets button").forEach(btn => {
 });
 
 predictBtn.addEventListener("click", runPrediction);
+connectSensorBtn.addEventListener("click", connectLiveSensor);
+
+async function connectLiveSensor(){
+  if(!("serial" in navigator)){
+    sensorStatus.textContent = "Use Chrome or Edge on localhost for sensors";
+    return;
+  }
+
+  try {
+    if(serialPort){
+      await disconnectLiveSensor();
+      return;
+    }
+
+    serialPort = await navigator.serial.requestPort();
+    await serialPort.open({baudRate: 115200});
+    connectSensorBtn.textContent = "Disconnect sensor";
+    sensorStatus.textContent = "Live: waiting for readings";
+    readSensorStream();
+  } catch(err) {
+    serialPort = null;
+    sensorStatus.textContent = `Connection failed: ${err.message}`;
+  }
+}
+
+async function disconnectLiveSensor(){
+  if(serialReader){
+    await serialReader.cancel();
+    serialReader = null;
+  }
+  if(serialPort){
+    await serialPort.close();
+    serialPort = null;
+  }
+  connectSensorBtn.textContent = "Connect live sensor";
+  sensorStatus.textContent = "Manual input";
+}
+
+async function readSensorStream(){
+  const decoder = new TextDecoderStream();
+  serialPort.readable.pipeTo(decoder.writable).catch(() => {});
+  serialReader = decoder.readable.getReader();
+  let buffer = "";
+
+  try {
+    while(true){
+      const {value, done} = await serialReader.read();
+      if(done) break;
+      buffer += value;
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop();
+      for(const line of lines){
+        if(line.trim()) handleSensorReading(line.trim());
+      }
+    }
+  } catch(err) {
+    sensorStatus.textContent = `Sensor stopped: ${err.message}`;
+  }
+}
+
+function handleSensorReading(line){
+  try {
+    const reading = JSON.parse(line);
+    const values = [reading.temperature, reading.ph_level, reading.moisture];
+    if(values.some(value => typeof value !== "number" || !Number.isFinite(value))){
+      throw new Error("expected temperature, ph_level, and moisture numbers");
+    }
+    temp.value = reading.temperature;
+    ph.value = reading.ph_level;
+    moisture.value = reading.moisture;
+    syncLabels();
+    sensorStatus.textContent = `Live: ${new Date().toLocaleTimeString()}`;
+    runPrediction();
+  } catch(err) {
+    sensorStatus.textContent = `Invalid sensor packet: ${err.message}`;
+  }
+}
 
 async function runPrediction(){
   errorBox.textContent = "";
