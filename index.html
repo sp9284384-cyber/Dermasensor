@@ -116,9 +116,9 @@
         <span class="val" id="tempVal">36.8</span>
       </div>
 
-      <label for="ph">pH Level</label>
+      <label for="ph">pH Level (fixed prototype value)</label>
       <div class="slider-row">
-        <input type="range" id="ph" min="3" max="9.5" step="0.1" value="5.2">
+        <input type="range" id="ph" min="3" max="9.5" step="0.1" value="5.2" disabled>
         <span class="val" id="phVal">5.2</span>
       </div>
 
@@ -175,12 +175,14 @@ const errorBox = document.getElementById("errorBox");
 const predictBtn = document.getElementById("predictBtn");
 const connectSensorBtn = document.getElementById("connectSensorBtn");
 const sensorStatus = document.getElementById("sensorStatus");
+const FIXED_PH_LEVEL = 5.2;
 let serialPort = null;
 let serialReader = null;
 
 function syncLabels(){
   tempVal.textContent = parseFloat(temp.value).toFixed(1);
-  phVal.textContent = parseFloat(ph.value).toFixed(1);
+  ph.value = FIXED_PH_LEVEL;
+  phVal.textContent = FIXED_PH_LEVEL.toFixed(1);
   moistureVal.textContent = Math.round(moisture.value);
 }
 [temp, ph, moisture].forEach(el => el.addEventListener("input", syncLabels));
@@ -260,12 +262,12 @@ async function readSensorStream(){
 function handleSensorReading(line){
   try {
     const reading = JSON.parse(line);
-    const values = [reading.temperature, reading.ph_level, reading.moisture];
+    const values = [reading.temperature, reading.moisture];
     if(values.some(value => typeof value !== "number" || !Number.isFinite(value))){
-      throw new Error("expected temperature, ph_level, and moisture numbers");
+      throw new Error("expected temperature and moisture numbers");
     }
     temp.value = reading.temperature;
-    ph.value = reading.ph_level;
+    ph.value = FIXED_PH_LEVEL;
     moisture.value = reading.moisture;
     syncLabels();
     sensorStatus.textContent = `Live: ${new Date().toLocaleTimeString()}`;
@@ -283,7 +285,7 @@ async function runPrediction(){
 
   const payload = {
     temperature: parseFloat(temp.value),
-    ph_level: parseFloat(ph.value),
+    ph_level: FIXED_PH_LEVEL,
     moisture: parseFloat(moisture.value)
   };
 

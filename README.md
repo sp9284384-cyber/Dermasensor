@@ -149,18 +149,29 @@ so no separate web server is needed.
 The web interface can receive real-time readings from an ESP32 over USB
 serial. Use Chrome or Edge, open the app through
 `http://localhost:5000`, click **Connect live sensor**, and select the serial
-device. The ESP32 should send one JSON object per line at **115200 baud**:
+device. The ESP32 should send one JSON object per line at **115200 baud**.
+For this prototype, pH is held at a fixed value of **5.2**; only temperature
+and moisture are read from the hardware:
 
 ```text
-{"temperature":36.8,"ph_level":5.2,"moisture":45}
+{"temperature":36.8,"moisture":45}
 ```
 
 Each valid packet updates the displayed readings and automatically calls the
-existing `/api/predict` endpoint, so live hardware uses the same validation,
+existing `/api/predict` endpoint, with `ph_level=5.2` added by the UI. Live
+hardware therefore uses the same validation,
 Random Forest model, rule engine, and explanation pipeline as manual input.
 The sensor gateway must be calibrated and electrically isolated as appropriate
 for patient use; this prototype is for development and demonstration, not a
 clinical device.
+
+An example ESP32 sketch is provided in `esp32_sensor.ino`. It reads a DHT22
+temperature sensor and an analog moisture probe, then emits the required JSON
+format. Install the Arduino **DHT sensor library**, select the ESP32 board,
+check `DHT_PIN` and `MOISTURE_PIN` against your wiring, and calibrate
+`MOISTURE_DRY_RAW` and `MOISTURE_WET_RAW` before uploading. The sketch uses
+GPIO 4 for the DHT data line and GPIO 34 for the analog moisture signal by
+default; these are examples, not universal wiring requirements.
 
 ### Optional: enable Llama 3 explanations
 ```bash
@@ -220,6 +231,7 @@ Response (abridged):
 | `model.joblib` | Trained model bundle (model + feature list + classes) |
 | `app.py` | Flask backend: `/api/predict`, `/api/health`, serves frontend |
 | `index.html` | Frontend UI (sliders, presets, risk result, explanation) |
+| `esp32_sensor.ino` | ESP32 example firmware for live temperature and moisture readings |
 | `feature_importance_rf.png` / `feature_importance_tree.png` | Feature importance plots |
 | `decision_tree.png` | Visualized decision tree (depth 3) |
 | `confusion_matrix.png` | Test-set confusion matrix |
